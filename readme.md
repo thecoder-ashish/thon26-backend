@@ -15,7 +15,7 @@ Ensure you have Node.js and npm installed. If not, download and install them fro
 1. Clone the repository:
 
    ```sh
-   git clone https://github.com/Frostbite-ai/NSUTTHON-BACKEND
+   git clone https://github.com/nemeziz1010/NSUTTHON-BACKEND
    cd NSUTTHON-BACKEND
    ```
 
