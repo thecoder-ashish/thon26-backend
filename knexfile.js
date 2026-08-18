@@ -1,13 +1,11 @@
 require("dotenv").config({ path: "./.env" });
-console.log(process.env.DATABASE_URL);
 
 module.exports = {
   development: {
     client: "pg",
-
     connection: {
       connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false }, // Include this line for SSL configuration
+      ssl: { rejectUnauthorized: false },
     },
     pool: {
       min: 2,
@@ -21,7 +19,7 @@ module.exports = {
     client: "pg",
     connection: {
       connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: true }, // Set to true in production
+      ssl: { rejectUnauthorized: false }, // Required for Supabase SSL connections on Render/Cloud
     },
     pool: {
       min: 2,
@@ -31,6 +29,4 @@ module.exports = {
       tableName: "knex_migrations",
     },
   },
-
-  // Add other environments like 'production', 'staging', etc. as needed
 };
