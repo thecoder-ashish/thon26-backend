@@ -10,8 +10,11 @@ router.get("/events", async (req, res) => {
   try {
     let allEvents = eventsCache.get("allEvents");
     if (!allEvents) {
-      allEvents = await knex("events").select("*");
-      eventsCache.set("allEvents", allEvents, 3600);
+      allEvents = await knex("events")
+        .select("*")
+        .orderBy("day_number", "asc")
+        .orderBy("time", "asc");
+      eventsCache.set("allEvents", allEvents, 300); // 5 min cache
     }
     res.json(allEvents);
   } catch (err) {
@@ -20,11 +23,26 @@ router.get("/events", async (req, res) => {
   }
 });
 
+router.get("/refreshEvents", async (req, res) => {
+  try {
+    eventsCache.del("allEvents");
+    const allEvents = await knex("events")
+      .select("*")
+      .orderBy("day_number", "asc")
+      .orderBy("time", "asc");
+    eventsCache.set("allEvents", allEvents, 300);
+    res.json(allEvents);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server error while refreshing events.");
+  }
+});
+
 router.get("/events/:id", async (req, res) => {
   const eventId = req.params.id;
 
   try {
-    let event = eventsCache.get(`event-`);
+    let event = eventsCache.get(`event-${eventId}`);
 
     if (!event) {
       event = await knex("events")
@@ -36,7 +54,7 @@ router.get("/events/:id", async (req, res) => {
         return res.status(404).send("Event not found.");
       }
 
-      eventsCache.set(`event-${eventId}`, event, 3600);
+      eventsCache.set(`event-${eventId}`, event, 300);
     }
 
     res.json(event);
@@ -123,7 +141,9 @@ const handleEventUpdate = async (req, res) => {
   } = req.body;
 
   if (!event_name || !day_number || !time) {
-    return res.status(400).json({ message: "Missing required fields (event_name, day_number, time)." });
+    return res
+      .status(400)
+      .json({ message: "Missing required fields (event_name, day_number, time)." });
   }
 
   if (pocs && pocs.length > 3) {
@@ -141,22 +161,28 @@ const handleEventUpdate = async (req, res) => {
 
     const updateData = {
       event_name,
-      description: description !== undefined ? description : eventExists.description,
+      description:
+        description !== undefined ? description : eventExists.description,
       day_number: Number(day_number),
       time,
       venue: venue !== undefined ? venue : eventExists.venue,
-      society_name: society_name !== undefined ? society_name : eventExists.society_name,
+      society_name:
+        society_name !== undefined ? society_name : eventExists.society_name,
       name_poc_1: pocs[0] ? pocs[0].name : null,
       phone_poc_1: pocs[0] ? pocs[0].phone : null,
       name_poc_2: pocs[1] ? pocs[1].name : null,
       phone_poc_2: pocs[1] ? pocs[1].phone : null,
       name_poc_3: pocs[2] ? pocs[2].name : null,
       phone_poc_3: pocs[2] ? pocs[2].phone : null,
-      registration_link: registration_link !== undefined ? registration_link : eventExists.registration_link,
+      registration_link:
+        registration_link !== undefined
+          ? registration_link
+          : eventExists.registration_link,
     };
 
     if (banner_url_1) updateData.banner_url_1 = banner_url_1;
-    if (banner_url_1_compressed) updateData.banner_url_1_compressed = banner_url_1_compressed;
+    if (banner_url_1_compressed)
+      updateData.banner_url_1_compressed = banner_url_1_compressed;
     if (banner_url_2) updateData.banner_url_2 = banner_url_2;
     if (banner_url_3) updateData.banner_url_3 = banner_url_3;
 
@@ -203,7 +229,10 @@ router.delete("/eventdelete/:id", authenticateToken, async (req, res) => {
     res.status(200).json({ message: "Event deleted successfully!" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error while deleting event.", error: err.message });
+    res.status(500).json({
+      message: "Server error while deleting event.",
+      error: err.message,
+    });
   }
 });
 
