@@ -149,6 +149,63 @@ router.get("/teams/export", async (req, res) => {
     res.status(500).send("Server error while exporting teams to Excel.");
   }
 });
+// 4. Batch score an event (Atomic points update for all participants and winners)
+router.post("/teams/score-event", authenticateToken, async (req, res) => {
+  const {
+    event_id,
+    first_team_id,
+    second_team_id,
+    third_team_id,
+    participating_team_ids,
+  } = req.body;
+
+  if (
+    !event_id ||
+    !participating_team_ids ||
+    !Array.isArray(participating_team_ids) ||
+    participating_team_ids.length === 0
+  ) {
+    return res
+      .status(400)
+      .json({ message: "Event ID and participating teams are required." });
+  }
+
+  try {
+    await knex.transaction(async (trx) => {
+      for (const teamId of participating_team_ids) {
+        let pointsToAdd = 5; // Base participation points for everyone
+
+        if (first_team_id && teamId === first_team_id) {
+          pointsToAdd += 40; // 1st: 40 position + 5 participation = 45
+        } else if (second_team_id && teamId === second_team_id) {
+          pointsToAdd += 25; // 2nd: 25 position + 5 participation = 30
+        } else if (third_team_id && teamId === third_team_id) {
+          pointsToAdd += 10; // 3rd: 10 position + 5 participation = 15
+        }
+
+        // Increment team points in database
+        await trx("Team")
+          .where("team_id", teamId)
+          .increment("points", pointsToAdd);
+      }
+    });
+
+    // Invalidate leaderboard cache
+    teamsCache.del("allTeams");
+
+    res.status(200).json({
+      message: "Event scoring submitted and team points updated successfully!",
+      scored_teams_count: participating_team_ids.length,
+    });
+  } catch (err) {
+    console.error("Error scoring event:", err);
+    res.status(500).json({
+      message: "Server error while scoring event.",
+      error: err.message,
+    });
+  }
+});
+
 
 module.exports = router;
 

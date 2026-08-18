@@ -9,7 +9,7 @@ const SMTP_PORT = process.env.SMTP_PORT;
 const SMTP_EMAIL = process.env.SMTP_EMAIL;
 const SMTP_PASSWORD = process.env.SMTP_PASSWORD;
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY; // Add this to your .env file
-const axios = require ("axios");
+const axios = require("axios");
 
 console.log("SMTP Configuration:");
 console.log("Host:", SMTP_HOST);
@@ -83,7 +83,7 @@ router.post("/register", async (req, res) => {
   try {
     const recaptchaResponse = await verifyRecaptcha(recaptchaToken);
 
-    if (!recaptchaResponse.success || recaptchaResponse.score < 0.5) {
+    if (!recaptchaResponse.success || (recaptchaResponse.score !== undefined && recaptchaResponse.score < 0.5)) {
       return res.status(400).json({ error: "Failed reCAPTCHA validation" });
     }
   } catch (error) {
@@ -109,9 +109,9 @@ router.post("/register", async (req, res) => {
           const teamMembers = members.map((member) => ({
             team_id: teamId,
             member_name: member.name,
-            branch: member.branch,
-            phone_number: member.phone,
-            email: member.email,
+            branch: member.branch || null,
+            phone_number: member.phone || null,
+            email: member.email || null,
             roll_no: member.rollno,
           }));
 
@@ -142,7 +142,7 @@ router.post("/register", async (req, res) => {
       // Invalidate the cache for allTeams because a new team has been registered
       teamsCache.del("allTeams");
 
-            // Send email only to the first team member
+      // Send email only to the first team member
       const teamLeader = members[0];
       console.log(`Preparing to send email to ${teamLeader.email}...`);
       const mailOptions = {
@@ -178,31 +178,31 @@ router.post("/register", async (req, res) => {
       </div>
     </div
     `,
-        };
+      };
 
-            transporter.sendMail(mailOptions, (error, info) => {
+      transporter.sendMail(mailOptions, (error, info) => {
         if (error) {
-            console.log(`Error sending mail to ${teamLeader.email}:`, error);
+          console.log(`Error sending mail to ${teamLeader.email}:`, error);
         } else {
-            console.log(
-                `Email successfully sent to ${teamLeader.email}. Response:`,
-                info.response
-            );
+          console.log(
+            `Email successfully sent to ${teamLeader.email}. Response:`,
+            info.response
+          );
         }
-    });
+      });
 
-    console.log("Sending response to client: Registration successful!");
-    res.status(201).json({
+      console.log("Sending response to client: Registration successful!");
+      res.status(201).json({
         message: "Registration successful!",
         teamId: teamId,
+      });
+    })
+    .catch((error) => {
+      console.log("Encountered an error while registering team:", error);
+      teamsCache.del("allTeams");
+      console.error("Detailed Error:", error);
+      res.status(500).json({ error: "Error registering team", details: error });
     });
-})
-.catch((error) => {
-    console.log("Encountered an error while registering team:", error);
-    teamsCache.del("allTeams");
-    console.error("Detailed Error:", error);
-    res.status(500).json({ error: "Error registering team", details: error });
-});
 });
 
 module.exports = router;

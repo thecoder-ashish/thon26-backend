@@ -1,93 +1,75 @@
 const express = require("express");
 const multer = require("multer");
-const { Storage } = require("@google-cloud/storage");
+const { createClient } = require("@supabase/supabase-js");
 const shortUUID = require("short-uuid");
 const sharp = require("sharp");
 
-const GCP_SERVICE_ACCOUNT_KEY_PATH = "/etc/secrets/vaulted-bonsai-437410-h8-0cc8128f5454.json";
-console.log(GCP_SERVICE_ACCOUNT_KEY_PATH);
-const GCP_PROJECT_ID = process.env.GCP_PROJECT_ID;
-const GCP_BUCKET_NAME = process.env.GCP_BUCKET_NAME;
-
-
-
 const router = express.Router();
 
-const storage = new Storage({
-  projectId: GCP_PROJECT_ID,
-  keyFilename: GCP_SERVICE_ACCOUNT_KEY_PATH,
-});
-// const storage = new Storage({
-//   projectId: JSON.parse(process.env.GCP_FILE_KEYS).project_id,
-//   credentials: JSON.parse(process.env.GCP_FILE_KEYS) // Parse the JSON string into an object
-// });
-const bucketName = GCP_BUCKET_NAME;
-const bucket = storage.bucket(bucketName);
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
-const multerMid = multer({
+const upload = multer({
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 50 * 1024 * 1024, // Optional: limit to 50MB
-  },
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-router.post("/upload", multerMid.single("file"), async (req, res) => {
+router.post("/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
-      res.status(400).send("No file uploaded.");
-      return;
+      return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const translator = shortUUID();
-    const uuid = translator.new();
+    const fileId = shortUUID.generate();
+    const originalFileName = `original-${fileId}.webp`;
+    const compressedFileName = `compressed-${fileId}.webp`;
 
-    const filenameParts = req.file.originalname.split(".");
-    const newFilename = `${filenameParts[0]}-${uuid}.${
-      filenameParts[1] || "png"
-    }`;
-    const compressedFilename = `${filenameParts[0]}-${uuid}-compressed.${
-      filenameParts[1] || "png"
-    }`;
+    const originalBuffer = await sharp(req.file.buffer)
+      .webp({ quality: 85 })
+      .toBuffer();
 
-    // First, save the original image
-    const originalBlob = bucket.file(newFilename);
-    const originalBlobStream = originalBlob.createWriteStream();
+    const compressedBuffer = await sharp(req.file.buffer)
+      .resize(400, 400, { fit: "cover" })
+      .webp({ quality: 60 })
+      .toBuffer();
 
-    originalBlobStream.on("error", (err) => {
-      console.log(err);
-      res.status(500).send(err);
-    });
-
-    originalBlobStream.on("finish", async () => {
-      // After the original image is saved, save the compressed one
-      const compressedImageBuffer = await sharp(req.file.buffer)
-        .resize(500) // or any other size you prefer
-        .jpeg({ quality: 70 }) // adjust quality as needed
-        .toBuffer();
-
-      const compressedBlob = bucket.file(compressedFilename);
-      const compressedBlobStream = compressedBlob.createWriteStream();
-
-      compressedBlobStream.on("error", (err) => {
-        console.log(err);
-        res.status(500).send(err);
+    const { error: err1 } = await supabase.storage
+      .from("events")
+      .upload(originalFileName, originalBuffer, {
+        contentType: "image/webp",
+        upsert: true,
       });
 
-      compressedBlobStream.on("finish", () => {
-        const publicUrl = {
-          original: `https://storage.googleapis.com/${bucket.name}/${originalBlob.name}`,
-          compressed: `https://storage.googleapis.com/${bucket.name}/${compressedBlob.name}`,
-        };
-        res.status(200).send(publicUrl);
+    const { error: err2 } = await supabase.storage
+      .from("events")
+      .upload(compressedFileName, compressedBuffer, {
+        contentType: "image/webp",
+        upsert: true,
       });
 
-      compressedBlobStream.end(compressedImageBuffer);
-    });
+    if (err1 || err2) {
+      console.error("Storage error:", err1 || err2);
+      return res.status(500).json({ error: "Failed to upload image" });
+    }
 
-    originalBlobStream.end(req.file.buffer);
+    const { data: origData } = supabase.storage
+      .from("events")
+      .getPublicUrl(originalFileName);
+
+    const { data: compData } = supabase.storage
+      .from("events")
+      .getPublicUrl(compressedFileName);
+
+    return res.status(200).json({
+      original: origData.publicUrl,
+      compressed: compData.publicUrl,
+    });
   } catch (error) {
-    console.log(error.message);
-    res.status(500).send(error.message);
+    console.error("Upload error:", error);
+    return res.status(500).json({ error: error.message });
   }
 });
+
 module.exports = router;

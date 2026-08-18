@@ -17,20 +17,22 @@ router.post("/admin/login", async (req, res) => {
     }
 
     const userData = await knex("user")
-      .select("user_id", "password")
+      .select("user_id", "password", "role")
       .where("username", username)
       .first();
-
     if (!userData) {
       return res
         .status(400)
-        .send("Cannot find user with the provided mobile number.");
+        .send("Cannot find user with the provided username.");
     }
 
     if (await bcrypt.compare(password, userData.password)) {
-      const user = { id: userData.user_id };
+      const userRole = userData.role || 'admin';
+      const user = { id: userData.user_id, role: userRole };
       const accessToken = jwt.sign(user, JWT_SECRET);
-      res.json({ accessToken: accessToken });
+
+      // Return accessToken along with role
+      res.json({ accessToken: accessToken, role: userRole });
     } else {
       res.status(403).send("Incorrect password.");
     }
