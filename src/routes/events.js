@@ -24,7 +24,7 @@ router.get("/events/:id", async (req, res) => {
   const eventId = req.params.id;
 
   try {
-    let event = eventsCache.get(`event-${eventId} a);
+    let event = eventsCache.get(`event-`);
 
     if (!event) {
       event = await knex("events")
