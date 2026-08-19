@@ -40,6 +40,16 @@ router.post("/register", async (req, res) => {
   }
 
   const cleanTeamName = teamName.trim();
+  const rollNumberPattern = /^202[56][A-Za-z0-9]+$/;
+
+  for (let i = 0; i < members.length; i++) {
+    const member = members[i];
+    if (!member || !member.rollno || !rollNumberPattern.test(member.rollno.trim())) {
+      return res.status(400).json({
+        error: `Invalid roll number for ${member?.name || `Member ${i + 1}`}. Roll numbers must start with 2025 or 2026 (e.g. 2026UCA0001 or 2025UCA0001).`,
+      });
+    }
+  }
 
   try {
     // 1. Strict Team Name Uniqueness Check (Case-insensitive & whitespace trimmed)
@@ -177,7 +187,7 @@ router.post("/register", async (req, res) => {
             <p style="color: #555; font-size: 15px; line-height: 1.6;">Please save your <strong>Team ID</strong>. You will need it to participate in festival events and record your team points on the leaderboard.</p>
             <p style="color: #555; font-size: 15px; line-height: 1.6; margin-top: 20px;">Join the official WhatsApp community for live schedules, announcements, and scoring updates:</p>
             <div style="text-align: center; margin: 24px 0;">
-              <a href="https://chat.whatsapp.com/IOKnp0w5GhV7wopGc8StZs" target="_blank" rel="noopener noreferrer" style="background-color: #16a34a; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Join WhatsApp Community</a>
+              <a href="https://chat.whatsapp.com/DpN0lPgr6OREEsYObnPapY?s=sw&p=a&ilr=4" target="_blank" rel="noopener noreferrer" style="background-color: #16a34a; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Join WhatsApp Community</a>
             </div>
             <p style="color: #777; font-size: 14px; line-height: 1.5; margin-top: 24px;">Best Regards,<br><strong>Team Crosslinks</strong></p>
           </div>
