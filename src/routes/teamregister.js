@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const knex = require("../utils/db.js");
 const nodemailer = require("nodemailer");
+const axios = require("axios");
 const { teamsCache } = require("../utils/cache.js");
 
 require("dotenv").config();
@@ -23,7 +24,7 @@ const transporter = nodemailer.createTransport({
 });
 
 router.post("/register", async (req, res) => {
-  const { teamName, members } = req.body;
+  const { teamName, members, recaptchaToken } = req.body;
 
   if (
     !teamName ||
@@ -37,6 +38,31 @@ router.post("/register", async (req, res) => {
       error:
         "Please provide valid team details (Team size must be between 3 and 5 members).",
     });
+  }
+
+  // Google reCAPTCHA v3 verification
+  if (process.env.RECAPTCHA_SECRET_KEY) {
+    if (!recaptchaToken) {
+      return res.status(400).json({
+        error: "reCAPTCHA verification failed. Security token is missing.",
+      });
+    }
+
+    try {
+      const captchaRes = await axios.post(
+        `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${recaptchaToken}`
+      );
+      
+      const { success, score } = captchaRes.data;
+      if (!success || (score !== undefined && score < 0.5)) {
+        return res.status(400).json({
+          error: "reCAPTCHA verification failed. Suspicious activity detected.",
+        });
+      }
+    } catch (err) {
+      console.error("reCAPTCHA validation error:", err.message);
+      // Fallback: log error but don't block user if Google services are experiencing issues
+    }
   }
 
   const cleanTeamName = teamName.trim();
