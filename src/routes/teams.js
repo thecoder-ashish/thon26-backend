@@ -13,7 +13,9 @@ router.get("/teams", async (req, res) => {
 
     if (!allTeams) {
       console.log("Before database call");
-      allTeams = await knex("Team").select("team_id", "team_name", "points");
+      allTeams = await knex("Team")
+        .select("team_id", "team_name", "points")
+        .orderBy("team_id", "asc");
       console.log("After database call");
       console.log("Data fetched from DB:", allTeams);
       teamsCache.set("allTeams", allTeams, 3600); // Cache for 1 hour
@@ -61,11 +63,9 @@ router.put("/teams/update-points", authenticateToken, async (req, res) => {
 
 router.get("/refreshTeams", async (req, res) => {
   try {
-    const allTeams = await knex("Team").select(
-      "team_id",
-      "team_name",
-      "points"
-    );
+    const allTeams = await knex("Team")
+      .select("team_id", "team_name", "points")
+      .orderBy("team_id", "asc");
     teamsCache.set("allTeams", allTeams, 3600);
     res.json(allTeams);
   } catch (err) {
@@ -84,7 +84,8 @@ router.get("/team-members/:team_id", async (req, res) => {
     if (!teamMembers) {
       teamMembers = await knex("Team_members")
         .where("team_id", team_id)
-        .select("*");
+        .select("*")
+        .orderBy("member_id", "asc");
       teamsCache.set(cacheKey, teamMembers, 3600); // Cache for 1 hour
     }
     res.json(teamMembers);
@@ -96,7 +97,9 @@ router.get("/team-members/:team_id", async (req, res) => {
 
 router.get("/teams/export", async (req, res) => {
   try {
-    const teams = await knex("Team").select("team_id", "team_name", "points");
+    const teams = await knex("Team")
+      .select("team_id", "team_name", "points")
+      .orderBy("team_id", "asc");
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Teams");
@@ -115,7 +118,8 @@ router.get("/teams/export", async (req, res) => {
     for (const team of teams) {
       const teamMembers = await knex("Team_members")
         .where("team_id", team.team_id)
-        .select("member_name", "branch", "phone_number", "roll_no", "email");
+        .select("member_name", "branch", "phone_number", "roll_no", "email")
+        .orderBy("member_id", "asc");
 
       if (teamMembers.length === 0) {
         worksheet.addRow({
